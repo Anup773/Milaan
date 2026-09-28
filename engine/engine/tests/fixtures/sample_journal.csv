@@ -1,0 +1,5 @@
+Date,Particulars,Vch No.,Debit,Credit
+01-04-2025,Purchase of Raw Materials,PUR-1001,"1,20,000.00",
+01-04-2025,Bank Account,PUR-1001,,"1,20,000.00"
+15-04-2025,Depreciation - Plant & Machinery,JV-2003,"45,000.00",
+15-04-2025,Accumulated Depreciation - P&M,JV-2003,,"45,000.00"
