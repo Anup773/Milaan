@@ -1,28 +1,26 @@
-import { execFile } from "node:child_process";
 import { unlink } from "node:fs/promises";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import multer from "multer";
 import { authenticate } from "../auth/middleware.js";
+import { assertCompanyInFirm } from "../companies/access.js";
+import { respondError } from "../../lib/http.js";
+import { runEngineCli } from "../../lib/pythonEngine.js";
 import { withTenant } from "../../db/client.js";
 
 export const importsRouter = Router();
 
-// multer's default storage drops the original file extension -- but
-// parse_file() on the Python side dispatches on .csv vs .xlsx, so the
-// temp file needs to keep it.
+const UPLOAD_DIR = path.join(os.tmpdir(), "milaan-uploads");
+mkdirSync(UPLOAD_DIR, { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: "/tmp/milaan-uploads/",
+  destination: UPLOAD_DIR,
   filename: (_req, file, cb) => cb(null, `${randomUUID()}${path.extname(file.originalname)}`),
 });
 const upload = multer({ storage });
-
-// Where the Python engine package lives, relative to wherever this process
-// runs from. Override with ENGINE_DIR in .env if your layout differs from
-// api/ and engine/ sitting side by side.
-const ENGINE_DIR = process.env.ENGINE_DIR ?? "../engine";
-const PYTHON_BIN = process.env.PYTHON_BIN ?? "python3";
 
 interface CliResult {
   rows: number;
@@ -30,43 +28,28 @@ interface CliResult {
   warnings: number;
   total_debit: string;
   total_credit: string;
-}
-
-function runIngestionCli(filePath: string, firmId: string, companyId: string, sourceFileId: string): Promise<CliResult> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      PYTHON_BIN,
-      ["-m", "engine.ingestion.cli", filePath, firmId, companyId, sourceFileId],
-      { cwd: ENGINE_DIR },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(stderr.trim() || error.message));
-          return;
-        }
-        try {
-          resolve(JSON.parse(stdout));
-        } catch {
-          reject(new Error(`unparseable output from ingestion engine: ${stdout}`));
-        }
-      }
-    );
-  });
+  issues_total: number;
+  issues: Array<{ row: number; field: string; severity: string; message: string }>;
 }
 
 importsRouter.post("/", authenticate, upload.single("file"), async (req, res) => {
   const companyId = req.body?.companyId;
+  const auth = req.auth!;
+
   if (typeof companyId !== "string") {
     res.status(400).json({ error: "companyId is required" });
+    if (req.file) await unlink(req.file.path).catch(() => {});
     return;
   }
   if (!req.file) {
     res.status(400).json({ error: "no file uploaded (expected multipart field 'file')" });
     return;
   }
-  const auth = req.auth!; // authenticate middleware guarantees this
   const uploadedPath = req.file.path;
 
   try {
+    await assertCompanyInFirm(auth.firmId, companyId);
+
     const sourceFileId = await withTenant({ firmId: auth.firmId, companyId }, async (client) => {
       const dataSource = await client.query(
         `INSERT INTO data_sources (company_id, name, source_type)
@@ -94,7 +77,7 @@ importsRouter.post("/", authenticate, upload.single("file"), async (req, res) =>
 
     let cliResult: CliResult;
     try {
-      cliResult = await runIngestionCli(uploadedPath, auth.firmId, companyId, sourceFileId);
+      cliResult = await runEngineCli<CliResult>("engine.ingestion.cli", [uploadedPath, auth.firmId, companyId, sourceFileId]);
     } catch (err) {
       await withTenant({ firmId: auth.firmId, companyId }, (client) =>
         client.query(`UPDATE source_files SET status = 'ERROR' WHERE id = $1`, [sourceFileId])
@@ -108,8 +91,7 @@ importsRouter.post("/", authenticate, upload.single("file"), async (req, res) =>
 
     res.json({ sourceFileId, ...cliResult });
   } catch (err) {
-    console.error("import failed:", err);
-    res.status(500).json({ error: err instanceof Error ? err.message : "import failed" });
+    respondError(res, err, "import failed");
   } finally {
     await unlink(uploadedPath).catch(() => {});
   }

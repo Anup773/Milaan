@@ -29,7 +29,10 @@ def tenant_connection(firm_id: str, company_id: Optional[str] = None) -> Iterato
     the RLS policies in migration 0001. Commits on success, rolls back on
     any exception raised inside the `with` block.
     """
-    conn = psycopg.connect(_require_env("APP_DATABASE_URL"))
+    # prepare_threshold=None: never create server-side prepared statements. psycopg would
+    # otherwise start doing so after a statement runs 5 times, which breaks behind
+    # connection poolers in transaction mode (e.g. Supabase's pooler).
+    conn = psycopg.connect(_require_env("APP_DATABASE_URL"), prepare_threshold=None)
     try:
         with conn.transaction():
             conn.execute("SELECT set_config('app.current_firm_id', %s, true)", (firm_id,))

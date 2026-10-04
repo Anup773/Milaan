@@ -43,8 +43,15 @@ def main(argv: list[str]) -> int:
             source_file_id=source_file_id,
             result=result,
         )
-    except Exception as exc:  # noqa: BLE001
-        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+    except ValueError as exc:
+        # Business-rule rejection (bad input, wrong state, not found) --
+        # the caller's fault, not the server's. status:400 lets Node's
+        # runEngineCli report the right HTTP code instead of defaulting
+        # every engine-side error to 500.
+        print(json.dumps({"error": str(exc), "status": 400}), file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001 -- anything else is a genuine, unexpected failure
+        print(json.dumps({"error": str(exc), "status": 500}), file=sys.stderr)
         return 1
 
     errors = sum(1 for i in result.issues if i.severity.value == "ERROR")
