@@ -7,7 +7,10 @@ import { periodsRouter } from "./modules/periods/routes.js";
 import { statementsRouter } from "./modules/statements/routes.js";
 import { schedulesRouter } from "./modules/schedules/routes.js";
 import { adjustmentsRouter } from "./modules/adjustments/routes.js";
-
+import { dependencyGraphRouter } from "./modules/dependency-graph/routes.js";
+import { scenariosRouter } from "./modules/scenarios/routes.js";
+import { impactRouter } from "./modules/impact/routes.js";
+import { reconciliationRouter } from "./modules/reconciliation/routes.js";
 export const app = express();
 app.use(express.json());
 
@@ -23,3 +26,7 @@ app.use("/companies", periodsRouter);
 app.use("/companies", statementsRouter);
 app.use("/companies", schedulesRouter);
 app.use("/companies", adjustmentsRouter);
+app.use("/companies", dependencyGraphRouter);
+app.use("/companies", scenariosRouter);
+app.use("/companies", impactRouter);
+app.use("/companies", reconciliationRouter);

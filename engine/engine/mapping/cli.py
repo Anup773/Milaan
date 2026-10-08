@@ -28,6 +28,7 @@ import sys
 from typing import Optional
 
 from ..db.connection import tenant_connection
+from ..db.errors import error_payload
 from .repository import confirm_mapping, find_unmapped_refs, materialize_source_file
 
 
@@ -91,8 +92,9 @@ def main(argv: list[str]) -> int:
         print(json.dumps({"error": str(exc), "status": 400}), file=sys.stderr)
         return 1
     except Exception as exc:  # noqa: BLE001 -- anything else is a genuine, unexpected failure
-        print(json.dumps({"error": str(exc), "status": 500}), file=sys.stderr)
+        print(json.dumps(error_payload(exc)), file=sys.stderr)
         return 1
+
 
     print(json.dumps(result, default=str))
     return 0

@@ -163,12 +163,20 @@ def post_depreciation(conn, *, company_id: str, period_id: str, created_by: Opti
 
 def reconcile_against_ledger(conn, company_id: str, period_id: str) -> Dict[str, Any]:
     """
-    For each asset's accumulated-depreciation account: compares the
-    schedule's own running total (sum of fixed_asset_depreciation_entries
-    posted so far, up to and including this period) against that
-    account's actual balance in the ledger, as of this period's end --
-    ARCHITECTURE.md §7/§11's "fixed-asset schedule's rollforward checked
-    against the ledger's actual account balances", built for real.
+    For each asset's accumulated-depreciation account: compares what the
+    schedule says has accumulated (everything posted so far, up to and
+    including this period) against that account's actual balance in the
+    ledger, as of this period's end -- ARCHITECTURE.md §7/§11's "fixed-asset
+    schedule's rollforward checked against the ledger's actual account
+    balances", built for real.
+
+    Assets that share one accumulated-depreciation account are added
+    together FIRST and the sum is compared to the account once. (Comparing
+    each asset on its own against the whole account would report a false
+    mismatch for every asset in any company that keeps a single
+    "Accumulated Depreciation" account -- the normal case.) Each row still
+    shows the asset's own schedule figure; `account_schedule_total` is the
+    sum that is actually compared, and `matches` is that comparison.
 
     Deliberately computed as raw (credit - debit), not via
     money.signed_balance(): the schedule tracks a positive magnitude
@@ -180,10 +188,14 @@ def reconcile_against_ledger(conn, company_id: str, period_id: str) -> Dict[str,
     _, period_end = _load_period(conn, company_id, period_id)
     assets = _load_assets(conn, company_id)
 
-    results = []
-    for item in assets:
-        asset = item["asset"]
-        with conn.cursor() as cur:
+    own_total: Dict[Any, Decimal] = {}
+    account_total: Dict[str, Decimal] = {}
+    assets_on_account: Dict[str, int] = {}
+    ledger_balance: Dict[str, Decimal] = {}
+
+    with conn.cursor() as cur:
+        for item in assets:
+            asset = item["asset"]
             cur.execute(
                 """
                 SELECT COALESCE(SUM(fade.amount), 0)
@@ -193,8 +205,13 @@ def reconcile_against_ledger(conn, company_id: str, period_id: str) -> Dict[str,
                 """,
                 (asset.id, period_end),
             )
-            schedule_total = cur.fetchone()[0]
+            total = cur.fetchone()[0]
+            account_id = str(item["accumulated_depreciation_account_id"])
+            own_total[asset.id] = total
+            account_total[account_id] = account_total.get(account_id, ZERO) + total
+            assets_on_account[account_id] = assets_on_account.get(account_id, 0) + 1
 
+        for account_id in account_total:
             cur.execute(
                 """
                 SELECT COALESCE(SUM(jl.credit), 0) - COALESCE(SUM(jl.debit), 0)
@@ -202,15 +219,21 @@ def reconcile_against_ledger(conn, company_id: str, period_id: str) -> Dict[str,
                 JOIN journal_entries je ON je.id = jl.journal_entry_id
                 WHERE je.company_id = %s AND jl.account_id = %s AND je.entry_date <= %s
                 """,
-                (company_id, item["accumulated_depreciation_account_id"], period_end),
+                (company_id, account_id, period_end),
             )
-            ledger_balance = cur.fetchone()[0]
+            ledger_balance[account_id] = cur.fetchone()[0]
 
+    results = []
+    for item in assets:
+        asset = item["asset"]
+        account_id = str(item["accumulated_depreciation_account_id"])
         results.append({
             "fixed_asset_id": asset.id, "name": asset.name,
-            "schedule_accumulated_depreciation": schedule_total,
-            "ledger_accumulated_depreciation_account_balance": ledger_balance,
-            "matches": schedule_total == ledger_balance,
+            "schedule_accumulated_depreciation": own_total[asset.id],
+            "assets_sharing_account": assets_on_account[account_id],
+            "account_schedule_total": account_total[account_id],
+            "ledger_accumulated_depreciation_account_balance": ledger_balance[account_id],
+            "matches": account_total[account_id] == ledger_balance[account_id],
         })
 
     return {"period_id": period_id, "as_of": period_end, "assets": results}
