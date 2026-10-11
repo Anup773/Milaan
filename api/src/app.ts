@@ -11,6 +11,8 @@ import { dependencyGraphRouter } from "./modules/dependency-graph/routes.js";
 import { scenariosRouter } from "./modules/scenarios/routes.js";
 import { impactRouter } from "./modules/impact/routes.js";
 import { reconciliationRouter } from "./modules/reconciliation/routes.js";
+import { exceptionsRouter } from "./modules/exceptions/routes.js";
+import { versionsRouter } from "./modules/versions/routes.js";
 export const app = express();
 app.use(express.json());
 
@@ -30,3 +32,5 @@ app.use("/companies", dependencyGraphRouter);
 app.use("/companies", scenariosRouter);
 app.use("/companies", impactRouter);
 app.use("/companies", reconciliationRouter);
+app.use("/companies", exceptionsRouter);
+app.use("/companies", versionsRouter);
