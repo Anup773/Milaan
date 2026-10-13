@@ -13,6 +13,7 @@ import { impactRouter } from "./modules/impact/routes.js";
 import { reconciliationRouter } from "./modules/reconciliation/routes.js";
 import { exceptionsRouter } from "./modules/exceptions/routes.js";
 import { versionsRouter } from "./modules/versions/routes.js";
+import { approvalsRouter } from "./modules/approvals/routes.js";
 export const app = express();
 app.use(express.json());
 
@@ -34,3 +35,4 @@ app.use("/companies", impactRouter);
 app.use("/companies", reconciliationRouter);
 app.use("/companies", exceptionsRouter);
 app.use("/companies", versionsRouter);
+app.use("/companies", approvalsRouter);
