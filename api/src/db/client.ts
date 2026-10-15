@@ -22,6 +22,8 @@ export const pool = new Pool({
 export interface TenantContext {
   firmId: string;
   companyId?: string;
+  /** Who is acting (Phase 15). The audit triggers read it to name the person on changes to tables that do not record one themselves. */
+  userId?: string;
 }
 
 /**
@@ -40,6 +42,9 @@ export async function withTenant<T>(
     await client.query("SELECT set_config('app.current_firm_id', $1, true)", [tenant.firmId]);
     if (tenant.companyId) {
       await client.query("SELECT set_config('app.current_company_id', $1, true)", [tenant.companyId]);
+    }
+    if (tenant.userId) {
+      await client.query("SELECT set_config('app.current_user_id', $1, true)", [tenant.userId]);
     }
     const result = await fn(client);
     await client.query("COMMIT");

@@ -28,7 +28,9 @@ def main(argv: list[str]) -> int:
     _, command, firm_id, company_id, *rest = argv
 
     try:
-        with tenant_connection(firm_id, company_id) as conn:
+        # Phase 15: name the person on the audit trail for what `post` writes (depreciation entries).
+        acting_user = rest[1] if command == "post" and len(rest) > 1 and rest[1] else None
+        with tenant_connection(firm_id, company_id, user_id=acting_user) as conn:
             if command == "rollforward":
                 result = rollforward(conn, company_id, rest[0])
             elif command == "post":

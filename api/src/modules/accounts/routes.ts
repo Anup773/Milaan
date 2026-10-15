@@ -48,7 +48,8 @@ accountsRouter.post(
 
     try {
       await assertCompanyInFirm(auth.firmId, companyId);
-      const result = await withTenant({ firmId: auth.firmId, companyId }, (client) =>
+      // Phase 15: userId is passed so the audit trail can name who created the account.
+      const result = await withTenant({ firmId: auth.firmId, companyId, userId: auth.userId }, (client) =>
         client.query(
           `INSERT INTO accounts (company_id, code, name, account_type, parent_account_id)
            VALUES ($1, $2, $3, $4, $5)

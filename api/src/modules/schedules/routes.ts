@@ -62,7 +62,8 @@ schedulesRouter.post(
     try {
       await assertCompanyInFirm(auth.firmId, companyId);
 
-      const result = await withTenant({ firmId: auth.firmId, companyId }, async (client) => {
+      // Phase 15: userId is passed so the audit trail can name who added the asset.
+      const result = await withTenant({ firmId: auth.firmId, companyId, userId: auth.userId }, async (client) => {
         // Catches the easy mistake of pointing a field at the wrong kind of
         // account (e.g. an Expense account as the asset_account_id) before
         // it can silently distort the accounting equation.

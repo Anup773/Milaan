@@ -42,7 +42,8 @@ periodsRouter.post(
 
     try {
       await assertCompanyInFirm(auth.firmId, companyId);
-      const result = await withTenant({ firmId: auth.firmId, companyId }, (client) =>
+      // Phase 15: userId is passed so the audit trail can name who created the period.
+      const result = await withTenant({ firmId: auth.firmId, companyId, userId: auth.userId }, (client) =>
         client.query(
           `INSERT INTO accounting_periods (company_id, label, period_start, period_end)
            VALUES ($1, $2, $3, $4)

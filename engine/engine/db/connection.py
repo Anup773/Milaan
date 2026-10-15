@@ -23,11 +23,16 @@ def _require_env(name: str) -> str:
 
 
 @contextmanager
-def tenant_connection(firm_id: str, company_id: Optional[str] = None) -> Iterator[psycopg.Connection]:
+def tenant_connection(firm_id: str, company_id: Optional[str] = None,
+                      user_id: Optional[str] = None) -> Iterator[psycopg.Connection]:
     """
     Opens a connection scoped to one firm (and optionally one company) for
     the RLS policies in migration 0001. Commits on success, rolls back on
     any exception raised inside the `with` block.
+
+    user_id (optional, Phase 15): who is acting. Set as app.current_user_id so the audit
+    triggers (migration 0011) can name the person for changes to tables that do not record
+    one themselves. Leaving it out is fine -- those events are then recorded without an actor.
     """
     # prepare_threshold=None: never create server-side prepared statements. psycopg would
     # otherwise start doing so after a statement runs 5 times, which breaks behind
@@ -38,6 +43,8 @@ def tenant_connection(firm_id: str, company_id: Optional[str] = None) -> Iterato
             conn.execute("SELECT set_config('app.current_firm_id', %s, true)", (firm_id,))
             if company_id:
                 conn.execute("SELECT set_config('app.current_company_id', %s, true)", (company_id,))
+            if user_id:
+                conn.execute("SELECT set_config('app.current_user_id', %s, true)", (user_id,))
             yield conn
     finally:
         conn.close()
