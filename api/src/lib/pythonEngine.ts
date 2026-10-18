@@ -27,20 +27,24 @@ export function runEngineCli<T = unknown>(pythonModule: string, args: string[]):
           // respondError reports the right HTTP code and the real message
           // reaches the client, instead of every engine error defaulting to
           // an unreadable 500.
+          // The engine can print unrelated warning lines to stderr (for
+          // example a database timezone notice) before the JSON error. So
+          // look for the last line that is a JSON object carrying an
+          // "error" field, rather than parsing the whole of stderr.
           const trimmed = stderr.trim();
           let message = trimmed || error.message;
           let status: number | undefined;
-          if (trimmed) {
+          const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          for (let i = lines.length - 1; i >= 0; i--) {
             try {
-              const parsed = JSON.parse(trimmed);
+              const parsed = JSON.parse(lines[i]);
               if (parsed && typeof parsed.error === "string") {
                 message = parsed.error;
-              }
-              if (parsed && typeof parsed.status === "number") {
-                status = parsed.status;
+                if (typeof parsed.status === "number") status = parsed.status;
+                break;
               }
             } catch {
-              // not JSON -- keep the raw text already assigned above
+              // not JSON -- keep looking at earlier lines
             }
           }
           const err = new Error(message) as StatusError;

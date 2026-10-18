@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background: #f6f4ef;
+  color: #1d2521;
+}
+
+body {
+  font-feature-settings: "tnum" 1, "cv11" 1;
+}
+
+/* Figures line up in columns: money is always set in tabular numerals. */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+::selection {
+  background: #cfe3d9;
+}
+
+:focus-visible {
+  outline: 2px solid #1f5c47;
+  outline-offset: 2px;
+}

@@ -1,7 +1,13 @@
 import "dotenv/config";
 import pg from "pg";
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+// Return Postgres DATE columns (oid 1082) as plain "YYYY-MM-DD" strings. By default node-postgres turns them
+// into JS Dates at local midnight, so JSON.stringify shifts them by the server's timezone offset
+// (2025-04-01 becomes "2025-03-31T18:15:00.000Z" on a UTC+05:45 server) and every client then shows the wrong day.
+// A calendar date has no time zone; keeping it a string keeps it exact.
+types.setTypeParser(1082, (value: string) => value);
 
 function requireEnv(name: string): string {
   const value = process.env[name];

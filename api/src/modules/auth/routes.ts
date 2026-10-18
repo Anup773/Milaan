@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { verifyPassword } from "./password.js";
 import { signSession } from "./jwt.js";
-import { pool } from "../../db/client.js";
+import { authenticate } from "./middleware.js";
+import { pool, withTenant } from "../../db/client.js";
 import type { AuthContext, Role } from "./types.js";
 
 export const authRouter = Router();
@@ -56,4 +57,24 @@ authRouter.post("/login", async (req, res) => {
   };
 
   res.json({ token: signSession(auth) });
+});
+
+// Who is signed in: what the frontend needs to show the user and to hide actions their role cannot take.
+// (The API still checks the role on every route -- this is only for display.)
+authRouter.get("/me", authenticate, async (req, res) => {
+  const auth = req.auth!;
+  try {
+    const result = await withTenant({ firmId: auth.firmId }, (client) =>
+      client.query(`SELECT email FROM users WHERE id = $1`, [auth.userId])
+    );
+    res.json({
+      userId: auth.userId,
+      firmId: auth.firmId,
+      role: auth.role,
+      email: result.rows[0]?.email ?? null,
+    });
+  } catch (err) {
+    console.error("auth/me failed:", err);
+    res.status(500).json({ error: "could not load the signed-in user" });
+  }
 });
