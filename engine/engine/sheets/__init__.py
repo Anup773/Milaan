@@ -1,0 +1,1 @@
+"""Google Sheets connector: reads a sheet and turns it into the same source rows an Excel/CSV import produces."""

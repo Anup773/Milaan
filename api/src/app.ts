@@ -16,6 +16,8 @@ import { versionsRouter } from "./modules/versions/routes.js";
 import { approvalsRouter } from "./modules/approvals/routes.js";
 import { auditRouter } from "./modules/audit/routes.js";
 import { companiesRouter } from "./modules/companies/routes.js";
+import { tallyRouter } from "./modules/tally/routes.js";
+import { sheetsRouter } from "./modules/sheets/routes.js";
 export const app = express();
 app.use(express.json());
 
@@ -25,6 +27,8 @@ app.get("/health", (_req, res) => {
 
 app.use("/auth", authRouter);
 app.use("/imports", importsRouter);
+app.use("/tally", tallyRouter);
+app.use("/sheets", sheetsRouter);
 app.use("/mappings", mappingsRouter);
 app.use("/companies", companiesRouter);
 app.use("/companies", accountsRouter);

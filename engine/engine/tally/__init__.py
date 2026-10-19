@@ -1,0 +1,1 @@
+"""Tally connector: turns Tally vouchers (XML) into the same source rows an Excel/CSV import produces."""

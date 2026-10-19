@@ -23,6 +23,8 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/companies", label: "Companies", icon: "building" },
       { href: "/imports", label: "Imports", icon: "upload" },
+      { href: "/tally", label: "Tally", icon: "book" },
+      { href: "/sheets", label: "Google Sheets", icon: "grid" },
       { href: "/mappings", label: "Mappings", icon: "link" },
       { href: "/versions", label: "Versions", icon: "compare" },
     ],
