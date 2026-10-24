@@ -1,0 +1,1 @@
+"""Bank statement connector: reads a bank's statement (CSV or Excel) and turns it into balanced source rows."""

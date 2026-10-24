@@ -25,6 +25,13 @@ export const pool = new Pool({
   connectionString: requireEnv("APP_DATABASE_URL"),
 });
 
+// An idle connection can be dropped by the database (restart, failover, network). node-postgres reports that as an
+// 'error' event on the pool; with no listener Node treats it as uncaught and the whole API process exits. Log it and
+// carry on: the pool discards the dead connection and opens a new one for the next request.
+pool.on("error", (err) => {
+  console.error("database connection error (idle client):", err.message);
+});
+
 export interface TenantContext {
   firmId: string;
   companyId?: string;

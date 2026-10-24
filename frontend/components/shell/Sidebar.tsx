@@ -21,6 +21,7 @@ const ICONS: Record<string, string> = {
   wave: "M2 10c2-4 3-4 5 0s3 4 5 0 3-4 6 0",
   check: "M4 10.5 8 14.5 16 5.5",
   shield: "M10 2.5 16 5v5c0 3.5-2.5 6-6 7.5C6.5 16 4 13.5 4 10V5z",
+  chat: "M4 4h12v9H9.5L6 16v-3H4zM7.5 7.5h5M7.5 10h3",
 };
 
 function Icon({ name }: { name: string }) {

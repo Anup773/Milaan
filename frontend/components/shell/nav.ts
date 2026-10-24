@@ -16,6 +16,7 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: "grid" },
       { href: "/statements", label: "Statements", icon: "book" },
+      { href: "/assistant", label: "Ask Milaan", icon: "chat" },
     ],
   },
   {
@@ -25,6 +26,8 @@ export const NAV: NavGroup[] = [
       { href: "/imports", label: "Imports", icon: "upload" },
       { href: "/tally", label: "Tally", icon: "book" },
       { href: "/sheets", label: "Google Sheets", icon: "grid" },
+      { href: "/bank", label: "Bank statements", icon: "scale" },
+      { href: "/registers", label: "GST & payroll", icon: "book" },
       { href: "/mappings", label: "Mappings", icon: "link" },
       { href: "/versions", label: "Versions", icon: "compare" },
     ],
@@ -35,6 +38,7 @@ export const NAV: NavGroup[] = [
       { href: "/schedules", label: "Schedules", icon: "calendar" },
       { href: "/reconciliation", label: "Reconciliation", icon: "scale" },
       { href: "/exceptions", label: "Exceptions", icon: "flag" },
+      { href: "/rules", label: "Rules", icon: "shield" },
     ],
   },
   {
