@@ -23,6 +23,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 
+from ..calendars.dates import adjust_native
 from ..ingestion.models import ParsedSourceRow, ParseIssue, ParseResult, Severity
 
 # Voucher types that record intent or stock movement, not accounting entries.
@@ -135,18 +136,28 @@ def _is_yes(element: ET.Element, tag: str) -> bool:
 
 
 def _parse_tally_date(raw: str) -> Optional[date]:
+    """
+    A Tally date. Tally writes 20260331 (year month day); a few other shapes are read too. The date then goes through
+    the company's date rules the way a real date cell does: an AD company refuses a BS-looking year (2082...), a BS
+    company reads a year of 2050 or more as BS and an earlier year as the real AD date it is.
+    """
     raw = raw.strip()
+    found: Optional[date] = None
     if re.fullmatch(r"\d{8}", raw):
         try:
-            return datetime.strptime(raw, "%Y%m%d").date()
+            found = datetime.strptime(raw, "%Y%m%d").date()
         except ValueError:
             return None
-    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d-%b-%Y"):
-        try:
-            return datetime.strptime(raw, fmt).date()
-        except ValueError:
-            continue
-    return None
+    else:
+        for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d-%b-%Y"):
+            try:
+                found = datetime.strptime(raw, fmt).date()
+                break
+            except ValueError:
+                continue
+    if found is None:
+        return None
+    return adjust_native(found).value
 
 
 def _parse_amount(raw: str) -> Decimal:

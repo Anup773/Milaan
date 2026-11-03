@@ -1,7 +1,27 @@
 // Display helpers. Money arrives from the API as exact decimal STRINGS ("120000.00"); it is formatted by
 // working on the string, never by turning it into a JavaScript float, so no figure is ever rounded or drifts.
 
+import { adToBs, formatBs } from "./bs-calendar";
+
 const DECIMAL = /^-?\d+(\.\d+)?$/;
+
+// How the open company writes numbers and dates (its accounting policy). The workspace sets this when a company is opened,
+// so every page's formatMoney / formatDate follows the company without each page passing it along. Before a policy exists
+// the old behaviour stays: Indian digit grouping and AD dates.
+export interface DisplayLocale {
+  calendar: "AD" | "BS";
+  grouping: "INDIAN" | "WESTERN";
+}
+const DEFAULT_LOCALE: DisplayLocale = { calendar: "AD", grouping: "INDIAN" };
+let locale: DisplayLocale = DEFAULT_LOCALE;
+
+export function setDisplayLocale(next: DisplayLocale | null): void {
+  locale = next ?? DEFAULT_LOCALE;
+}
+
+export function getDisplayLocale(): DisplayLocale {
+  return locale;
+}
 
 /** True if `value` is a plain decimal such as "120000", "-45.5" or "0.00". */
 export function isDecimal(value: unknown): value is string {
@@ -22,11 +42,16 @@ function groupIndian(digits: string): string {
   return `${parts.join(",")},${last3}`;
 }
 
+/** Western digit grouping: 1234567 -> "1,234,567". */
+function groupWestern(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 /**
- * "-120000.5" -> "-1,20,000.50". Always two decimals. Anything that is not a decimal is returned as "-".
+ * "-120000.5" -> "-1,20,000.50" (or "-120,000.50" for a company that uses Western grouping). Always two decimals. Anything that is not a decimal is returned as "-".
  * Negative amounts keep a leading minus (a ledger shows credits as negative balances; hiding that would mislead).
  */
-export function formatMoney(value: string | null | undefined): string {
+export function formatMoney(value: string | null | undefined, grouping: DisplayLocale["grouping"] = locale.grouping): string {
   if (value === null || value === undefined || !isDecimal(value)) return "-";
   const text = value.trim();
   const negative = text.startsWith("-");
@@ -41,7 +66,13 @@ export function formatMoney(value: string | null | undefined): string {
     cents = bumped.slice(-2);
   }
   const isZero = /^0*$/.test(wholeDigits) && cents === "00";
-  return `${negative && !isZero ? "-" : ""}${groupIndian(wholeDigits || "0")}.${cents}`;
+  return `${negative && !isZero ? "-" : ""}${(grouping === "WESTERN" ? groupWestern : groupIndian)(wholeDigits || "0")}.${cents}`;
+}
+
+/** A whole-unit amount ("1900000" -> "1,900,000"): the same grouping as formatMoney, without the cents. */
+export function formatWhole(value: string | null | undefined): string {
+  const text = formatMoney(value);
+  return text === "-" ? text : text.replace(/\.\d\d$/, "");
 }
 
 /** True when two decimal strings are the same amount to the cent ("10.0" equals "10.00"). */
@@ -81,11 +112,18 @@ export function parseAmountInput(raw: string): string | null {
   return /^-?\d+(\.\d{1,2})?$/.test(cleaned) ? cleaned : null;
 }
 
-/** "2025-04-01" -> "01 Apr 2025". Calendar dates are never passed through the Date constructor (no timezone shifts). */
-export function formatDate(value: string | null | undefined): string {
+/**
+ * "2025-04-01" -> "01 Apr 2025", or "18 Chaitra 2081 BS" for a company that keeps its books in Bikram Sambat.
+ * Calendar dates are never passed through the Date constructor (no timezone shifts). A date outside the BS table is shown in AD.
+ */
+export function formatDate(value: string | null | undefined, calendar: DisplayLocale["calendar"] = locale.calendar): string {
   if (!value) return "-";
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   if (!match) return value;
+  if (calendar === "BS") {
+    const b = adToBs(value);
+    if (b) return `${formatBs(b)} BS`;
+  }
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const month = months[Number(match[2]) - 1];
   if (!month) return value;

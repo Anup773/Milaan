@@ -27,6 +27,7 @@ from typing import Dict, Optional
 from ..bank.cli import existing_keys
 from ..bank.statement import BankError
 from ..ingestion.persist import persist_parse_result
+from ..policy.repository import company_date_rules
 from .register import RegisterError, RegisterParse, keys_of, mark_duplicates, parse_file
 from .templates import describe_all
 
@@ -106,9 +107,11 @@ def main(argv: list[str]) -> int:
         if len(argv) == 2 and argv[1] == "templates":
             return cmd_templates()
         if len(argv) == 9 and argv[1] == "preview":
-            return cmd_preview(*argv[2:9])
+            with company_date_rules(argv[7], argv[8]):
+                return cmd_preview(*argv[2:9])
         if len(argv) == 10 and argv[1] == "import":
-            return cmd_import(*argv[2:10])
+            with company_date_rules(argv[7], argv[8]):
+                return cmd_import(*argv[2:10])
         return _fail("usage: templates | preview <template> <file> <accounts_json> <date|-> <party 0|1> <firm> <company> | import ... <source_file>", 500)
     except (RegisterError, BankError) as exc:
         return _fail(str(exc), 400)

@@ -1,9 +1,14 @@
-import { formatDelta, formatMoney, signOf } from "@/lib/format";
+import { formatDelta, formatMoney, formatWhole, signOf } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-/** An exact decimal string shown with Indian grouping and tabular numerals. */
+/** An exact decimal string shown with the company's digit grouping (Indian or Western, from its policy) and tabular numerals. */
 export function Money({ value, className }: { value: string | null | undefined; className?: string }) {
   return <span className={cn("num whitespace-nowrap", className)}>{formatMoney(value)}</span>;
+}
+
+/** A whole-unit amount (no cents), for statements shown in whole rupees or dollars. */
+export function Whole({ value, className }: { value: string | null | undefined; className?: string }) {
+  return <span className={cn("num whitespace-nowrap", className)}>{formatWhole(value)}</span>;
 }
 
 /** A change: +green / -red / 0 neutral. `goodWhen` says which direction is good news ("up" for profit, "down" for expense). */

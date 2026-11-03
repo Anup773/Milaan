@@ -10,8 +10,9 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Callable
 
+from ..calendars.dates import ParsedDate, adjust_native, parse_date_detailed
 from .models import ParsedSourceRow, ParseIssue, ParseResult, Severity
-from .money_parse import parse_amount, parse_date
+from .money_parse import parse_amount
 
 GetCell = Callable[[str], Any]
 
@@ -30,20 +31,23 @@ def _as_amount(value: Any) -> Decimal:
     return parse_amount(str(value))
 
 
-def _as_date(value: Any) -> date | None:
+def _read_date(value: Any) -> ParsedDate:
+    """A date cell under the company's date rules (calendar and date order): see engine.calendars.dates."""
     if value is None or value == "":
-        return None
-    if isinstance(value, datetime):  # check before `date` -- datetime is a date subclass
-        return value.date()
-    if isinstance(value, date):
-        return value
-    return parse_date(str(value))
+        return ParsedDate(None)
+    if isinstance(value, (datetime, date)):  # an Excel date cell (datetime is a date subclass)
+        return adjust_native(value)
+    return parse_date_detailed(str(value))
 
 
 def build_row(result: ParseResult, row_number: int, get_cell: GetCell, columns: dict[str, int]) -> None:
-    txn_date = _as_date(get_cell("date"))
+    parsed_date = _read_date(get_cell("date"))
+    txn_date = parsed_date.value
     if txn_date is None:
-        result.issues.append(ParseIssue(row_number, "date", f"unparseable or missing date: {get_cell('date')!r}", Severity.ERROR))
+        reason = f" ({parsed_date.problem})" if parsed_date.problem else ""
+        result.issues.append(ParseIssue(row_number, "date", f"unparseable or missing date: {get_cell('date')!r}{reason}", Severity.ERROR))
+    for warning in parsed_date.warnings:
+        result.issues.append(ParseIssue(row_number, "date", warning, Severity.WARNING))
 
     account_ref = _as_text(get_cell("account"))
     if not account_ref:

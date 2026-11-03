@@ -73,6 +73,8 @@ export interface ProfitLoss {
   total_income: string;
   total_expense: string;
   net_profit: string;
+  /** Present when asked for with ?whole=true. */
+  presented?: ProfitLossPresented;
 }
 
 export interface BalanceSheetLine {
@@ -92,6 +94,8 @@ export interface BalanceSheet {
   total_liabilities: string;
   total_equity_and_retained_earnings: string;
   balances: boolean;
+  /** Present when asked for with ?whole=true. */
+  presented?: BalanceSheetPresented;
 }
 
 export interface CashFlow {
@@ -724,4 +728,98 @@ export interface AuditCatalog {
   object_types: Array<{ object_type: string; label: string }>;
   roles: { read: string[]; export: string[]; verify: string[] };
   limits: { default_limit: number; max_limit: number; max_export_rows: number };
+}
+
+// ── Phase 24: whole-unit statements, changes in equity, and the checks between statements ──
+
+/** One section of a statement shown in whole units: each line rounded, plus the difference between the rounded total and the rounded lines. */
+export interface WholeSectionData {
+  lines: Array<{ account_id?: string; code?: string; name?: string; presented: string }>;
+  total: string;
+  footing_difference: string;
+}
+
+export interface ProfitLossPresented {
+  unit: string;
+  income: WholeSectionData;
+  expense: WholeSectionData;
+  net_profit: string;
+  footing_difference: string;
+}
+
+export interface BalanceSheetPresented {
+  unit: string;
+  assets: WholeSectionData;
+  liabilities: WholeSectionData;
+  equity: WholeSectionData;
+  retained_earnings: string;
+  total_assets: string;
+  total_liabilities_and_equity: string;
+  footing_difference_liabilities_and_equity: string;
+  assets_minus_liabilities_and_equity: string;
+}
+
+export interface EquityComponent {
+  kind: "account" | "retained_profit";
+  account_id: string | null;
+  code: string | null;
+  name: string;
+  opening: string;
+  increases: string;
+  decreases: string;
+  profit: string;
+  closing: string;
+  presented?: string;
+}
+
+export interface EquityStatement {
+  period_id: string;
+  period_label: string;
+  period_start: string;
+  period_end: string;
+  components: EquityComponent[];
+  totals: { opening: string; increases: string; decreases: string; profit: string; closing: string };
+  profit_for_period: string;
+  balance_sheet_equity: string;
+  agrees_with_balance_sheet: boolean;
+  profit_and_loss_net_profit: string;
+  profit_agrees: boolean;
+  rolls_forward: boolean;
+  presented?: { unit: string; components: EquityComponent[]; closing_total: string; rounding: string };
+}
+
+export interface StatementCheck {
+  id: string;
+  title: string;
+  status: "PASS" | "ERROR" | "WARNING";
+  message: string;
+}
+
+export interface StatementChecks {
+  period_id: string;
+  all_pass: boolean;
+  errors: number;
+  checks: StatementCheck[];
+}
+
+/** The figures a printed statement can be compared with (same keys as the engine's FIGURE_LABELS). */
+export const PRINTED_FIGURES: Array<{ key: string; label: string }> = [
+  { key: "total_assets", label: "Total assets" },
+  { key: "total_liabilities", label: "Total liabilities" },
+  { key: "total_equity", label: "Total equity (including accumulated profit)" },
+  { key: "total_income", label: "Total income" },
+  { key: "total_expense", label: "Total expenses" },
+  { key: "net_profit", label: "Net profit for the period" },
+  { key: "opening_cash", label: "Cash and bank at the start of the period" },
+  { key: "net_cash_flow", label: "Net movement in cash during the period" },
+  { key: "closing_cash", label: "Cash and bank at the end of the period" },
+];
+
+export interface PrintedComparison {
+  period_id: string;
+  period_label: string;
+  rounding: "EXACT" | "WHOLE";
+  tolerance: string;
+  rows: Array<{ key: string; label: string; printed: string; ledger: string; difference: string; agrees: boolean; message: string }>;
+  all_agree: boolean;
 }

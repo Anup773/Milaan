@@ -12,7 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Loading, Notice, Empty } from "@/components/common/notice";
 import { Money } from "@/components/common/money";
 import { DrillDown } from "@/components/ledger/DrillDown";
+import { EquityPanel } from "@/components/ledger/EquityPanel";
+import { ChecksPanel } from "@/components/ledger/ChecksPanel";
+import { WholeUnitsTable } from "@/components/ledger/WholeUnits";
 import { useApi } from "@/lib/use-api";
+import { useWorkspace } from "@/lib/workspace";
 import { formatDate, sameAmount, signOf } from "@/lib/format";
 import type {
   Account,
@@ -25,20 +29,14 @@ import type {
   TrialBalanceLine,
 } from "@/lib/types";
 
-type Tab = "tb" | "pl" | "bs" | "cf" | "gl";
-
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: "tb", label: "Trial balance" },
-  { id: "pl", label: "Profit & loss" },
-  { id: "bs", label: "Balance sheet" },
-  { id: "cf", label: "Cash flow" },
-  { id: "gl", label: "General ledger" },
-];
+type Tab = "tb" | "pl" | "bs" | "eq" | "cf" | "gl" | "ck";
 
 interface Ctx {
   companyId: string;
   periodId: string;
   periodEnd: string;
+  /** Show the statement in whole units as well (each line rounded). */
+  whole: boolean;
   openAccount: (id: string, label: string) => void;
 }
 
@@ -73,7 +71,7 @@ function TrialBalancePanel({ companyId, periodId, openAccount }: Ctx) {
   return (
     <Card>
       <CardHeader
-        title="Trial balance"
+        title={useWorkspace().locale.titles.trial_balance}
         description={data ? `${data.period_label}, ${formatDate(data.period_start)} to ${formatDate(data.period_end)}` : undefined}
         actions={data ? <Badge tone={balanced ? "pass" : "fail"}>{balanced ? "Debits equal credits" : "Out of balance"}</Badge> : null}
       />
@@ -148,12 +146,13 @@ function LinesTable({ lines, onOpen }: { lines: TrialBalanceLine[]; onOpen: Ctx[
   );
 }
 
-function ProfitLossPanel({ companyId, periodId, openAccount }: Ctx) {
-  const { data, error, loading } = useApi<ProfitLoss>(`companies/${companyId}/statements/profit-loss`, { periodId });
+function ProfitLossPanel({ companyId, periodId, whole, openAccount }: Ctx) {
+  const { locale } = useWorkspace();
+  const { data, error, loading } = useApi<ProfitLoss>(`companies/${companyId}/statements/profit-loss`, { periodId, ...(whole ? { whole: "true" } : {}) });
   return (
     <Card>
       <CardHeader
-        title="Profit & loss"
+        title={locale.titles.profit_and_loss}
         description={data ? `${data.period_label}, ${formatDate(data.period_start)} to ${formatDate(data.period_end)}` : undefined}
       />
       <PanelState loading={loading} error={error} hasData={!!data} />
@@ -172,10 +171,29 @@ function ProfitLossPanel({ companyId, periodId, openAccount }: Ctx) {
             <Money value={data.total_expense} />
           </div>
           <div className="flex justify-between px-4 py-3 text-base font-semibold">
-            <span>{signOf(data.net_profit) < 0 ? "Net loss" : "Net profit"}</span>
+            <span>{signOf(data.net_profit) < 0 ? "Net loss" : locale.titles.profit_label}</span>
             <Money value={data.net_profit} className={signOf(data.net_profit) < 0 ? "text-fail" : "text-pass"} />
           </div>
         </TableWrap>
+      ) : null}
+      {data?.presented ? (
+        <WholeUnitsTable
+          sections={[
+            {
+              title: "Income",
+              lines: data.presented.income.lines.map((l) => ({ key: l.account_id ?? l.code ?? "", label: `${l.code ?? ""} ${l.name ?? ""}`.trim(), amount: l.presented })),
+              total: data.presented.income.total,
+              footing: data.presented.income.footing_difference,
+            },
+            {
+              title: "Expenses",
+              lines: data.presented.expense.lines.map((l) => ({ key: l.account_id ?? l.code ?? "", label: `${l.code ?? ""} ${l.name ?? ""}`.trim(), amount: l.presented })),
+              total: data.presented.expense.total,
+              footing: data.presented.expense.footing_difference,
+            },
+            { title: locale.titles.profit_label, lines: [], total: data.presented.net_profit, footing: data.presented.footing_difference, totalLabel: locale.titles.profit_label },
+          ]}
+        />
       ) : null}
     </Card>
   );
@@ -213,12 +231,13 @@ function BsSection({ title, lines, total, onOpen }: { title: string; lines: Bala
   );
 }
 
-function BalanceSheetPanel({ companyId, periodEnd, openAccount }: Ctx) {
-  const { data, error, loading } = useApi<BalanceSheet>(`companies/${companyId}/statements/balance-sheet`, { asOfDate: periodEnd });
+function BalanceSheetPanel({ companyId, periodEnd, whole, openAccount }: Ctx) {
+  const { locale } = useWorkspace();
+  const { data, error, loading } = useApi<BalanceSheet>(`companies/${companyId}/statements/balance-sheet`, { asOfDate: periodEnd, ...(whole ? { whole: "true" } : {}) });
   return (
     <Card>
       <CardHeader
-        title="Balance sheet"
+        title={locale.titles.balance_sheet}
         description={data ? `As of ${formatDate(data.as_of_date)}` : undefined}
         actions={data ? <Badge tone={data.balances ? "pass" : "fail"}>{data.balances ? "Balances" : "Does not balance"}</Badge> : null}
       />
@@ -238,6 +257,39 @@ function BalanceSheetPanel({ companyId, periodEnd, openAccount }: Ctx) {
           </div>
         </TableWrap>
       ) : null}
+      {data?.presented ? (
+        <WholeUnitsTable
+          note={
+            data.presented.assets_minus_liabilities_and_equity === "0"
+              ? undefined
+              : `After rounding, assets and liabilities plus equity differ by ${data.presented.assets_minus_liabilities_and_equity}. That is rounding in the lines, not an error in the ledger.`
+          }
+          sections={[
+            {
+              title: "Assets",
+              lines: data.presented.assets.lines.map((l) => ({ key: l.account_id ?? l.code ?? "", label: `${l.code ?? ""} ${l.name ?? ""}`.trim(), amount: l.presented })),
+              total: data.presented.assets.total,
+              footing: data.presented.assets.footing_difference,
+            },
+            {
+              title: "Liabilities",
+              lines: data.presented.liabilities.lines.map((l) => ({ key: l.account_id ?? l.code ?? "", label: `${l.code ?? ""} ${l.name ?? ""}`.trim(), amount: l.presented })),
+              total: data.presented.liabilities.total,
+              footing: data.presented.liabilities.footing_difference,
+            },
+            {
+              title: locale.titles.equity_label,
+              lines: [
+                ...data.presented.equity.lines.map((l) => ({ key: l.account_id ?? l.code ?? "", label: `${l.code ?? ""} ${l.name ?? ""}`.trim(), amount: l.presented })),
+                { key: "retained", label: "Retained earnings", amount: data.presented.retained_earnings },
+              ],
+              total: data.presented.total_liabilities_and_equity,
+              footing: data.presented.footing_difference_liabilities_and_equity,
+              totalLabel: "Total liabilities and equity",
+            },
+          ]}
+        />
+      ) : null}
     </Card>
   );
 }
@@ -247,7 +299,7 @@ function CashFlowPanel({ companyId, periodId }: Ctx) {
   return (
     <Card>
       <CardHeader
-        title="Cash flow"
+        title={useWorkspace().locale.titles.cash_flow}
         description={data ? `${data.period_label}, ${formatDate(data.period_start)} to ${formatDate(data.period_end)}` : undefined}
       />
       <PanelState loading={loading} error={error} hasData={!!data} />
@@ -354,20 +406,43 @@ function GeneralLedgerPanel({ companyId, periodId }: Ctx) {
 }
 
 function Statements({ companyId, periodId, periodEnd }: { companyId: string; periodId: string; periodEnd: string }) {
+  const { locale } = useWorkspace();
   const params = useSearchParams();
   const initial = params.get("tab");
-  const [tab, setTab] = useState<Tab>(TABS.some((t) => t.id === initial) ? (initial as Tab) : "tb");
+  // The tab names follow the company's country (a US company's "Income Statement", an Indian company's "Statement of Profit and Loss").
+  const tabs: Array<{ id: Tab; label: string }> = [
+    { id: "tb", label: locale.titles.trial_balance },
+    { id: "pl", label: locale.titles.profit_and_loss },
+    { id: "bs", label: locale.titles.balance_sheet },
+    { id: "eq", label: locale.titles.changes_in_equity },
+    { id: "cf", label: locale.titles.cash_flow },
+    { id: "gl", label: "General ledger" },
+    { id: "ck", label: "Checks" },
+  ];
+  const [tab, setTab] = useState<Tab>(tabs.some((t) => t.id === initial) ? (initial as Tab) : "tb");
   const [drill, setDrill] = useState<{ id: string; label: string } | null>(null);
-  const ctx: Ctx = { companyId, periodId, periodEnd, openAccount: (id, label) => setDrill({ id, label }) };
+  // A company whose statements are in whole units starts with them shown that way.
+  const [wholeChoice, setWholeChoice] = useState<boolean | null>(null);
+  const whole = wholeChoice ?? locale.rounding === "WHOLE";
+  const ctx: Ctx = { companyId, periodId, periodEnd, whole, openAccount: (id, label) => setDrill({ id, label }) };
+  const wholeTabs: Tab[] = ["pl", "bs", "eq"];
 
   return (
     <div className="space-y-4">
-      <Tabs tabs={TABS} value={tab} onChange={setTab} />
+      <Tabs tabs={tabs} value={tab} onChange={setTab} />
+      {wholeTabs.includes(tab) ? (
+        <label className="flex items-center gap-2 text-sm text-ink-soft">
+          <input type="checkbox" checked={whole} onChange={(e) => setWholeChoice(e.target.checked)} className="h-4 w-4 accent-ledger" />
+          Also show in whole units (each line rounded, as a printed statement is)
+        </label>
+      ) : null}
       {tab === "tb" ? <TrialBalancePanel {...ctx} /> : null}
       {tab === "pl" ? <ProfitLossPanel {...ctx} /> : null}
       {tab === "bs" ? <BalanceSheetPanel {...ctx} /> : null}
+      {tab === "eq" ? <EquityPanel companyId={companyId} periodId={periodId} whole={whole} /> : null}
       {tab === "cf" ? <CashFlowPanel {...ctx} /> : null}
       {tab === "gl" ? <GeneralLedgerPanel {...ctx} /> : null}
+      {tab === "ck" ? <ChecksPanel companyId={companyId} periodId={periodId} /> : null}
       <DrillDown
         companyId={companyId}
         periodId={periodId}
@@ -384,7 +459,7 @@ export default function StatementsPage() {
     <>
       <PageHeader
         title="Statements"
-        description="The books as posted: trial balance, profit and loss, balance sheet, cash flow and the general ledger. Click an account to see where each figure came from."
+        description="The books as posted: trial balance, profit and loss, balance sheet, changes in equity, cash flow and the general ledger, with checks that the statements agree with each other and with a printed statement. Click an account to see where each figure came from."
       />
       <Gate needsPeriod>
         {({ company, period }) =>

@@ -10,15 +10,12 @@ that one and delete the duplicate here.
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
-_AMOUNT_JUNK = re.compile(r"[,\s\u20b9$]")  # commas, whitespace, ₹, $
+from ..calendars.dates import DateRules, parse_date_detailed
 
-_DATE_FORMATS = (
-    "%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d", "%d-%b-%Y", "%d %b %Y",
-    "%m/%d/%Y", "%d.%m.%Y",
-)
+_AMOUNT_JUNK = re.compile(r"[,\s₹$]")  # commas, whitespace, ₹, $
 
 
 def parse_amount(raw: str | None) -> Decimal:
@@ -33,7 +30,7 @@ def parse_amount(raw: str | None) -> Decimal:
         return Decimal("0")
 
     text = str(raw).strip()
-    if text in ("", "-", "\u2013", "\u2014"):
+    if text in ("", "-", "–", "—"):
         return Decimal("0")
 
     negative = text.startswith("(") and text.endswith(")")
@@ -52,16 +49,12 @@ def parse_amount(raw: str | None) -> Decimal:
     return -value if negative else value
 
 
-def parse_date(raw: str | None) -> date | None:
-    if raw is None:
-        return None
-    text = str(raw).strip()
-    if not text:
-        return None
-
-    for fmt in _DATE_FORMATS:
-        try:
-            return datetime.strptime(text, fmt).date()
-        except ValueError:
-            continue
-    return None
+def parse_date(raw: str | None, rules: DateRules | None = None) -> date | None:
+    """
+    The AD date in `raw`, or None when it can not be read. How the text is read follows the company's date rules
+    (calendar AD/BS, day-first or month-first): the rules passed in, else the ones in force for this piece of work
+    (see engine.calendars.dates.use_rules), else the legacy rules for a company with no policy. A date is never
+    guessed: 2082-04-01 is refused in an AD company (it is a BS year), and read as 16 July 2025 in a BS company.
+    Callers that need to say WHY a date was refused use engine.calendars.dates.parse_date_detailed.
+    """
+    return parse_date_detailed(raw, rules).value

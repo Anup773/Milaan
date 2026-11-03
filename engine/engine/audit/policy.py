@@ -47,6 +47,9 @@ OBJECT_TYPES: Dict[str, str] = {
     "account_mapping": "Account mapping",
     "source_file": "Imported file",
     "fixed_asset": "Fixed asset",
+    "accounting_policy": "Accounting policy",
+    "tax_pool_movement": "Tax depreciation entry",
+    "tax_depreciation_rate": "Tax depreciation rate",
     "audit": "Audit trail",
 }
 
@@ -102,6 +105,14 @@ OTHER_ACTIONS: Dict[str, str] = {
     "import.error": "File failed to process",
     "fixed_asset.create": "Fixed asset added",
     "fixed_asset.depreciation_posted": "Depreciation posted",
+    "policy.create": "Accounting policy set up",
+    "policy.update": "Accounting policy changed",
+    "tax_pool.add": "Tax depreciation entry added",
+    "tax_pool.change": "Tax depreciation entry changed",
+    "tax_pool.remove": "Tax depreciation entry removed",
+    "tax_rate.set": "Tax depreciation rate set",
+    "tax_rate.change": "Tax depreciation rate changed",
+    "tax_rate.remove": "Tax depreciation rate removed",
     # written by this module itself, not by a trigger
     "audit.export": "Audit trail exported",
 }

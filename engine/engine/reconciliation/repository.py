@@ -14,6 +14,7 @@ from psycopg.types.json import Jsonb
 
 from . import rules as _rules  # noqa: F401 -- importing registers the built-in rules
 from . import rules_exceptions as _rules_exceptions  # noqa: F401 -- Phase 12: open exception flags
+from . import rules_statements as _rules_statements  # noqa: F401 -- Phase 24: checks between statements
 from .registry import ReconContext, catalog, run_rules, summarize
 from ..scenarios_json import plain
 

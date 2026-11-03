@@ -9,6 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
+from ..policy.repository import effective as effective_policy
 from .fixed_assets import FixedAsset, compute_period_depreciation
 
 ZERO = Decimal("0.00")
@@ -77,13 +78,14 @@ def rollforward(conn, company_id: str, period_id: str) -> Dict[str, Any]:
     """
     period_start, period_end = _load_period(conn, company_id, period_id)
     assets = _load_assets(conn, company_id)
+    next_month = effective_policy(conn, company_id).depreciation_starts_next_month  # company accounting policy (Phase 22)
 
     lines = []
     for item in assets:
         asset = item["asset"]
         accumulated_before = _accumulated_before(conn, asset.id, period_start)
         opening_wdv = asset.cost - accumulated_before
-        this_period = compute_period_depreciation(asset, period_start, period_end, accumulated_before)
+        this_period = compute_period_depreciation(asset, period_start, period_end, accumulated_before, next_month)
         lines.append({
             "fixed_asset_id": asset.id, "name": asset.name,
             "cost": asset.cost, "accumulated_before_period": accumulated_before,
@@ -107,6 +109,7 @@ def post_depreciation(conn, *, company_id: str, period_id: str, created_by: Opti
     """
     period_start, period_end = _load_period(conn, company_id, period_id)
     assets = _load_assets(conn, company_id)
+    next_month = effective_policy(conn, company_id).depreciation_starts_next_month  # company accounting policy (Phase 22)
 
     posted, already_posted, skipped_zero = [], [], []
 
@@ -123,7 +126,7 @@ def post_depreciation(conn, *, company_id: str, period_id: str, created_by: Opti
                 continue
 
             accumulated_before = _accumulated_before(conn, asset.id, period_start)
-            amount = compute_period_depreciation(asset, period_start, period_end, accumulated_before)
+            amount = compute_period_depreciation(asset, period_start, period_end, accumulated_before, next_month)
             if amount <= ZERO:
                 skipped_zero.append({"fixed_asset_id": asset.id, "name": asset.name})
                 continue

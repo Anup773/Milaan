@@ -1,4 +1,3 @@
-
 """
 Reads a bank statement and turns each transaction into a balanced pair of source rows.
 
@@ -30,8 +29,9 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
+from ..calendars.dates import adjust_native, parse_date_detailed
 from ..ingestion.models import ParsedSourceRow, ParseIssue, ParseResult, Severity
-from ..ingestion.money_parse import parse_amount, parse_date
+from ..ingestion.money_parse import parse_amount
 
 ZERO = Decimal("0")
 HEADER_SCAN_ROWS = 40
@@ -107,30 +107,24 @@ def find_header_row(rows: Sequence[Sequence[Any]]) -> Optional[int]:
 
 # ---- reading single cells ---------------------------------------------------------------------------------------------
 
-_EXTRA_DATE_FORMATS = ("%d/%m/%y", "%d-%m-%y", "%d-%b-%y", "%d %b %y", "%d %B %Y", "%d-%B-%Y", "%Y/%m/%d", "%d.%m.%y", "%b %d, %Y")
 _TRAILING_TIME = re.compile(r"[ T]+\d{1,2}:\d{2}(:\d{2})?(\.\d+)?\s*([AaPp][Mm])?$")
 _DR_CR_SUFFIX = re.compile(r"\s*(cr|dr|c|d)\.?$", re.IGNORECASE)
 
 
 def read_date(value: Any) -> Optional[date]:
+    """
+    A statement date under the company's date rules (calendar and date order -- see engine.calendars.dates). Real date
+    cells and text both work; day-month-two-digit-year and named months are accepted. Nothing is guessed: in a company that
+    writes month first, 25/03/2026 is refused rather than read as something else.
+    """
     if value is None or value == "":
         return None
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
-        return value
+    if isinstance(value, (datetime, date)):
+        return adjust_native(value).value
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return None  # a bare number in a date column is not a date that can be trusted
     text = _TRAILING_TIME.sub("", str(value).strip())
-    found = parse_date(text)  # day-first formats come before month-first ones
-    if found is not None:
-        return found
-    for fmt in _EXTRA_DATE_FORMATS:
-        try:
-            return datetime.strptime(text, fmt).date()
-        except ValueError:
-            continue
-    return None
+    return parse_date_detailed(text, two_digit_years=True).value
 
 
 def _blank(value: Any) -> bool:

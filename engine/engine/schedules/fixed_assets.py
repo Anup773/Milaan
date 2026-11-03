@@ -39,16 +39,20 @@ def months_of_depreciation_in_period(
     disposed_date: Optional[date],
     period_start: date,
     period_end: date,
+    starts_next_month: bool = False,
 ) -> int:
     """
     Whole calendar months during which the asset was held AND which fall
-    inside the period -- the acquisition month and the disposal month
-    each count as a full month if the asset was held at all during that
-    month. This is a stated convention, not a universal rule: a future
-    company-level accounting-policy setting (ARCHITECTURE.md §13) should
-    make it configurable per company instead of fixed here.
+    inside the period. The disposal month counts as a full month if the
+    asset was held at all during it. The acquisition month counts as a
+    full month too -- unless `starts_next_month` is set, when depreciation
+    begins the month AFTER acquisition instead. This is a stated
+    convention, not a universal rule, so it is a company accounting-policy
+    setting (ARCHITECTURE.md §13, Phase 22: depreciation_start); callers
+    read it with policy.effective() and pass it in. The default (False)
+    is the behaviour Milaan had before policies existed.
     """
-    asset_start = _month_index(acquisition_date)
+    asset_start = _month_index(acquisition_date) + (1 if starts_next_month else 0)
     asset_end = _month_index(disposed_date) if disposed_date else None
     period_start_idx = _month_index(period_start)
     period_end_idx = _month_index(period_end)
@@ -67,6 +71,7 @@ def monthly_straight_line_depreciation(cost: Decimal, salvage_value: Decimal, us
 
 def compute_period_depreciation(
     asset: FixedAsset, period_start: date, period_end: date, accumulated_before_period: Decimal,
+    starts_next_month: bool = False,
 ) -> Decimal:
     """
     The amount to charge for exactly this period: the straight-line
@@ -76,7 +81,8 @@ def compute_period_depreciation(
     Returns ZERO (never negative) once nothing is left to depreciate, or
     if the asset wasn't held at all during this period.
     """
-    months = months_of_depreciation_in_period(asset.acquisition_date, asset.disposed_date, period_start, period_end)
+    months = months_of_depreciation_in_period(asset.acquisition_date, asset.disposed_date, period_start, period_end,
+                                              starts_next_month)
     if months <= 0:
         return ZERO
 

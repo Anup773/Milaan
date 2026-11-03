@@ -20,6 +20,7 @@ import sys
 from typing import Optional
 
 from ..ingestion.persist import persist_parse_result
+from ..policy.repository import company_date_rules
 from . import client
 from .parser import parse_rows
 from .source import SheetsError, parse_sheet_reference
@@ -113,7 +114,8 @@ def main(argv: list[str]) -> int:
         if len(argv) == 3 and argv[1] == "check":
             return cmd_check(argv[2])
         if len(argv) == 7 and argv[1] == "import":
-            return cmd_import(*argv[2:])
+            with company_date_rules(argv[4], argv[5]):
+                return cmd_import(*argv[2:])
         return _fail("usage: status | check <link> | import <link> <tab|-> <firm> <company> <source_file>", 500)
     except SheetsError as exc:
         return _fail(str(exc), 400)

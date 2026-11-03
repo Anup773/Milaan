@@ -5,6 +5,7 @@ import { assertCompanyInFirm } from "../companies/access.js";
 import { respondError } from "../../lib/http.js";
 import { runEngineCli } from "../../lib/pythonEngine.js";
 import { withTenant } from "../../db/client.js";
+import { AssetPolicyError, applyAssetPolicy, type AssetPolicy } from "./assetPolicy.js";
 
 export const schedulesRouter = Router();
 
@@ -47,14 +48,16 @@ schedulesRouter.post(
       typeof name !== "string" || !name.trim() ||
       typeof acquisitionDate !== "string" ||
       typeof cost !== "number" || cost <= 0 ||
-      typeof usefulLifeMonths !== "number" || usefulLifeMonths <= 0 ||
+      // usefulLifeMonths may be left out: the company's accounting policy can supply a default (checked below)
+      (usefulLifeMonths !== undefined && usefulLifeMonths !== null && (typeof usefulLifeMonths !== "number" || usefulLifeMonths <= 0)) ||
       typeof assetAccountId !== "string" ||
       typeof accumulatedDepreciationAccountId !== "string" ||
       typeof depreciationExpenseAccountId !== "string"
     ) {
       res.status(400).json({
         error:
-          "name, acquisitionDate, cost, usefulLifeMonths, assetAccountId, accumulatedDepreciationAccountId and depreciationExpenseAccountId are required",
+          "name, acquisitionDate, cost, assetAccountId, accumulatedDepreciationAccountId and depreciationExpenseAccountId are required " +
+          "(usefulLifeMonths too, unless the company's accounting policy sets a default); cost and usefulLifeMonths must be positive numbers",
       });
       return;
     }
@@ -62,7 +65,6 @@ schedulesRouter.post(
     try {
       await assertCompanyInFirm(auth.firmId, companyId);
 
-      // Phase 15: userId is passed so the audit trail can name who added the asset.
       const result = await withTenant({ firmId: auth.firmId, companyId, userId: auth.userId }, async (client) => {
         // Catches the easy mistake of pointing a field at the wrong kind of
         // account (e.g. an Expense account as the asset_account_id) before
@@ -84,6 +86,21 @@ schedulesRouter.post(
           throw err;
         }
 
+        // The company's accounting policy (Phase 22): the capitalisation threshold, and a default useful life.
+        const policyRow = await client.query(
+          `SELECT capitalization_threshold, default_useful_life_months FROM accounting_policies WHERE company_id = $1`,
+          [companyId]
+        );
+        let life: number;
+        try {
+          life = applyAssetPolicy({ cost, usefulLifeMonths }, (policyRow.rows[0] as AssetPolicy | undefined) ?? null).usefulLifeMonths;
+        } catch (err) {
+          if (!(err instanceof AssetPolicyError)) throw err;
+          const e = new Error(err.message) as Error & { status?: number };
+          e.status = 400;
+          throw e;
+        }
+
         const inserted = await client.query(
           `INSERT INTO fixed_assets
              (company_id, name, acquisition_date, cost, salvage_value, useful_life_months,
@@ -91,7 +108,7 @@ schedulesRouter.post(
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            RETURNING id, name, acquisition_date, cost, salvage_value, useful_life_months`,
           [
-            companyId, name.trim(), acquisitionDate, cost, salvageValue ?? 0, usefulLifeMonths,
+            companyId, name.trim(), acquisitionDate, cost, salvageValue ?? 0, life,
             assetAccountId, accumulatedDepreciationAccountId, depreciationExpenseAccountId,
           ]
         );

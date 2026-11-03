@@ -25,6 +25,7 @@ from psycopg.types.json import Jsonb
 
 from ..adjustments.repository import propose_adjustment
 from ..ledger.reports import _period_dates
+from ..policy.repository import effective as effective_policy
 from ..scenarios_json import plain
 from . import rules as _rules  # noqa: F401 -- importing registers the built-in detectors
 from . import state_machine as sm
@@ -109,6 +110,15 @@ def _linked_adjustments(conn, company_id: str, exception_id: str) -> List[Dict[s
 
 
 # ── detection ────────────────────────────────────────────────────────────
+def thresholds_for_company(conn, company_id: str) -> Thresholds:
+    """
+    The detectors' thresholds for one company: the two amounts its accounting policy sets (Phase 22), and
+    the built-in defaults for everything else. A company with no policy gets exactly the old defaults.
+    """
+    eff = effective_policy(conn, company_id)
+    return Thresholds(min_amount=eff.review_min_amount, large_amount=eff.review_large_amount)
+
+
 def detect(conn, *, company_id: str, period_id: str, run_by: str, today: Optional[date] = None,
            thresholds: Optional[Thresholds] = None) -> Dict[str, Any]:
     """
@@ -121,6 +131,8 @@ def detect(conn, *, company_id: str, period_id: str, run_by: str, today: Optiona
         # One detection at a time per company+period, so two overlapping runs cannot both decide "new".
         cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"exceptions:{company_id}:{period_id}",))
 
+    if thresholds is None:
+        thresholds = thresholds_for_company(conn, company_id)
     ctx = DetectionContext(conn, company_id, period_id, today, thresholds)
     ctx.dataset  # fail early, clearly, if the period isn't this company's
     outcomes = run_detectors(ctx)

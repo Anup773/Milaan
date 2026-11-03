@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import sys
 
+from ..policy.repository import company_date_rules
 from .parse import parse_file
 from .persist import persist_parse_result
 
@@ -36,7 +37,9 @@ def main(argv: list[str]) -> int:
     _, file_path, firm_id, company_id, source_file_id = argv
 
     try:
-        result = parse_file(file_path)
+        # Dates are read the way this company writes them (its calendar and date order, from its accounting policy).
+        with company_date_rules(firm_id, company_id):
+            result = parse_file(file_path)
         persist_parse_result(
             firm_id=firm_id,
             company_id=company_id,

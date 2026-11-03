@@ -23,6 +23,7 @@ export const NAV: NavGroup[] = [
     title: "Bring data in",
     items: [
       { href: "/companies", label: "Companies", icon: "building" },
+      { href: "/policy", label: "Accounting policy", icon: "edit" },
       { href: "/imports", label: "Imports", icon: "upload" },
       { href: "/tally", label: "Tally", icon: "book" },
       { href: "/sheets", label: "Google Sheets", icon: "grid" },
@@ -36,6 +37,7 @@ export const NAV: NavGroup[] = [
     title: "Check",
     items: [
       { href: "/schedules", label: "Schedules", icon: "calendar" },
+      { href: "/tax-depreciation", label: "Tax depreciation", icon: "scale" },
       { href: "/reconciliation", label: "Reconciliation", icon: "scale" },
       { href: "/exceptions", label: "Exceptions", icon: "flag" },
       { href: "/rules", label: "Rules", icon: "shield" },

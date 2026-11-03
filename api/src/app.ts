@@ -21,8 +21,14 @@ import { sheetsRouter } from "./modules/sheets/routes.js";
 import { bankRouter } from "./modules/bank/routes.js";
 import { registersRouter } from "./modules/registers/routes.js";
 import { aiRouter } from "./modules/ai/routes.js";
-import { rulesRouter } from "./modules/rules/routes.js"; // NEW (Phase 21)
+import { rulesRouter } from "./modules/rules/routes.js";
+import { policyRouter } from "./modules/policy/routes.js";
+import { taxDepreciationRouter } from "./modules/tax-depreciation/routes.js";
+import { billingRouter } from "./modules/billing/routes.js";
+import { billingWebhookRouter } from "./modules/billing/webhooks.js";
 export const app = express();
+// The card provider's webhooks need the exact bytes they signed, so they are mounted before the JSON parser.
+app.use("/billing/webhooks", billingWebhookRouter);
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
@@ -36,7 +42,7 @@ app.use("/sheets", sheetsRouter);
 app.use("/bank", bankRouter);
 app.use("/registers", registersRouter);
 app.use("/ai", aiRouter);
-app.use("/rules", rulesRouter); // NEW (Phase 21)
+app.use("/rules", rulesRouter);
 app.use("/mappings", mappingsRouter);
 app.use("/companies", companiesRouter);
 app.use("/companies", accountsRouter);
@@ -52,3 +58,6 @@ app.use("/companies", exceptionsRouter);
 app.use("/companies", versionsRouter);
 app.use("/companies", approvalsRouter);
 app.use("/companies", auditRouter);
+app.use("/companies", policyRouter);
+app.use("/companies", taxDepreciationRouter);
+app.use("/billing", billingRouter);

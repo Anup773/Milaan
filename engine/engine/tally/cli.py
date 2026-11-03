@@ -22,6 +22,7 @@ import sys
 from datetime import date
 
 from ..ingestion.persist import persist_parse_result
+from ..policy.repository import company_date_rules
 from . import client
 from .parser import TallyError, TallyParse, parse_tally_xml
 
@@ -96,9 +97,11 @@ def main(argv: list[str]) -> int:
         if len(argv) == 2 and argv[1] == "status":
             return cmd_status()
         if len(argv) == 6 and argv[1] == "import-file":
-            return cmd_import_file(*argv[2:])
+            with company_date_rules(argv[3], argv[4]):
+                return cmd_import_file(*argv[2:])
         if len(argv) == 8 and argv[1] == "import-live":
-            return cmd_import_live(*argv[2:])
+            with company_date_rules(argv[5], argv[6]):
+                return cmd_import_live(*argv[2:])
         return _fail("usage: status | import-file <xml> <firm> <company> <source_file> | import-live <from> <to> <tally_company|-> <firm> <company> <source_file>", 500)
     except TallyError as exc:
         return _fail(str(exc), 400)

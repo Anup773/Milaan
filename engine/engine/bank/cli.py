@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Set
 
 from ..db.connection import tenant_connection
+from ..policy.repository import company_date_rules
 from ..ingestion.persist import persist_parse_result
 from .statement import BankError, BankParse, keys_of, mark_duplicates, parse_file
 
@@ -89,9 +90,11 @@ def cmd_import(path: str, bank: str, suspense: str, firm_id: str, company_id: st
 def main(argv: list[str]) -> int:
     try:
         if len(argv) == 7 and argv[1] == "preview":
-            return cmd_preview(*argv[2:7])
+            with company_date_rules(argv[5], argv[6]):
+                return cmd_preview(*argv[2:7])
         if len(argv) == 8 and argv[1] == "import":
-            return cmd_import(*argv[2:8])
+            with company_date_rules(argv[5], argv[6]):
+                return cmd_import(*argv[2:8])
         return _fail("usage: preview <file> <bank> <suspense> <firm> <company> | import <file> <bank> <suspense> <firm> <company> <source_file>", 500)
     except BankError as exc:
         return _fail(str(exc), 400)

@@ -1,4 +1,3 @@
-
 """
 The built-in reconciliation rules. Importing this module registers them.
 
@@ -15,6 +14,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, List, Tuple
 
+from ..policy.repository import effective as effective_policy
 from ..schedules.fixed_assets import compute_period_depreciation
 from ..schedules.repository import _accumulated_before, _load_assets
 from .registry import ERROR, NOT_CHECKED, PASS, WARNING, ReconContext, RuleResult, register_rule, result
@@ -145,6 +145,7 @@ def depreciation_posted_for_period(ctx: ReconContext) -> RuleResult:
     assets = _load_assets(ctx.conn, ctx.company_id)
     if not assets:
         return result(rid, NOT_CHECKED, "This company has no fixed assets to check.")
+    next_month = effective_policy(ctx.conn, ctx.company_id).depreciation_starts_next_month  # accounting policy (Phase 22)
 
     due: List[Dict[str, Any]] = []
     with ctx.conn.cursor() as cur:
@@ -155,7 +156,7 @@ def depreciation_posted_for_period(ctx: ReconContext) -> RuleResult:
             if cur.fetchone() is not None:
                 continue
             amount = compute_period_depreciation(asset, period_start, period_end,
-                                                 _accumulated_before(ctx.conn, asset.id, period_start))
+                                                 _accumulated_before(ctx.conn, asset.id, period_start), next_month)
             if amount > ZERO:
                 due.append({"asset": asset.name, "fixed_asset_id": str(asset.id), "amount_due": amount})
     if due:
